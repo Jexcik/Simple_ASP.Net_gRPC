@@ -6,6 +6,8 @@ package greet;
 
 service Greeter {
   rpc SayHello (HelloRequest) returns (HelloReply);
+  rpc GetServerTime (TimeRequest) returns (TimeReply);
+  rpc SayHelloStream (HelloRequest) returns (stream HelloReply);
 }
 
 message HelloRequest {
@@ -14,4 +16,13 @@ message HelloRequest {
 
 message HelloReply {
   string message = 1;
+}
+
+message TimeRequest {
+  string timezone = 1;
+}
+
+message TimeReply {
+  string utc_time = 1;
+  string timezone = 2;
 }

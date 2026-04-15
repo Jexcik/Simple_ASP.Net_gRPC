@@ -1,89 +1,45 @@
 # Simple ASP.NET Core + gRPC demo
 
-Ниже — минимальный, но показательный пример, чтобы быстро понять механику gRPC в ASP.NET Core:
+Ниже — минимальный, но показательный пример, чтобы быстро понять механику gRPC в ASP.NET Core.
 
-- `proto`-контракт (`greet.proto`) описывает сервис и сообщения.
-- Сервер (`GrpcDemo.Server`) реализует RPC-метод `SayHello`.
-- Клиент (`GrpcDemo.Client`) вызывает этот метод как обычный C#-метод.
+## Что добавлено
 
-## 1) Как это работает в 30 секунд
+В демо есть уже **3 типа взаимодействия**:
 
-1. Ты описываешь API в `.proto` файле.
-2. `Grpc.Tools` генерирует C# классы (клиент/серверные base-классы + DTO).
-3. Сервер наследуется от `Greeter.GreeterBase` и реализует `SayHello`.
-4. Клиент создает `Greeter.GreeterClient` и вызывает `SayHelloAsync`.
+1. **Unary RPC** `SayHello` — один запрос, один ответ.
+2. **Unary RPC** `GetServerTime` — возврат серверного времени.
+3. **Server Streaming RPC** `SayHelloStream` — один запрос, поток ответов.
 
-## 2) Контракт (proto)
+Это помогает сразу увидеть, как выглядит gRPC не только в самом простом кейсе, но и в стриминговом.
 
-Файл: `src/GrpcDemo.Server/Protos/greet.proto`
+## Структура
+
+- `src/GrpcDemo.Server` — ASP.NET Core gRPC сервер
+- `src/GrpcDemo.Client` — консольный gRPC клиент
+- `src/GrpcDemo.Server/Protos/greet.proto` — контракт, общий для клиента и сервера
+
+## Контракт (`.proto`)
 
 ```proto
-syntax = "proto3";
-
-option csharp_namespace = "GrpcDemo.Server";
-
-package greet;
-
 service Greeter {
   rpc SayHello (HelloRequest) returns (HelloReply);
-}
-
-message HelloRequest {
-  string name = 1;
-}
-
-message HelloReply {
-  string message = 1;
+  rpc GetServerTime (TimeRequest) returns (TimeReply);
+  rpc SayHelloStream (HelloRequest) returns (stream HelloReply);
 }
 ```
 
-## 3) Сервер
+## Как это работает
 
-### Регистрация gRPC
+1. Описываешь сервис в `greet.proto`.
+2. `Grpc.Tools` генерирует C#-типы.
+3. Сервер наследуется от `GreeterBase` и реализует методы.
+4. Клиент создаёт `GreeterClient` и вызывает RPC как обычные async-методы.
 
-Файл: `src/GrpcDemo.Server/Program.cs`
-
-```csharp
-builder.Services.AddGrpc();
-app.MapGrpcService<GreeterService>();
-```
-
-### Реализация метода
-
-Файл: `src/GrpcDemo.Server/Services/GreeterService.cs`
-
-```csharp
-public override Task<HelloReply> SayHello(HelloRequest request, ServerCallContext context)
-{
-    return Task.FromResult(new HelloReply
-    {
-        Message = $"Привет, {request.Name}!"
-    });
-}
-```
-
-## 4) Клиент
-
-Файл: `src/GrpcDemo.Client/Program.cs`
-
-```csharp
-using var channel = GrpcChannel.ForAddress("https://localhost:5001");
-var client = new Greeter.GreeterClient(channel);
-
-var reply = await client.SayHelloAsync(new HelloRequest
-{
-    Name = "ASP.NET Core learner"
-});
-
-Console.WriteLine(reply.Message);
-```
-
-## 5) Как запустить локально
+## Запуск локально
 
 > В этом контейнере `dotnet` не установлен, но на твоей машине команды будут такими:
 
 ```bash
-# из корня репозитория
 dotnet restore
 
 # терминал 1: сервер
@@ -93,19 +49,15 @@ dotnet run --project src/GrpcDemo.Server
 dotnet run --project src/GrpcDemo.Client
 ```
 
-## 6) Что важно понять новичку
+## Что посмотреть в клиенте
 
-- **gRPC = контракт-first**: сначала `.proto`, потом реализация.
-- **HTTP/2 + protobuf**: быстрее и компактнее JSON в типичных внутренних API.
-- **Сильная типизация**: меньше ошибок на клиенте.
-- **Отлично для микросервисов** внутри .NET экосистемы.
+- вызов `SayHelloAsync`
+- вызов `GetServerTimeAsync`
+- чтение `await foreach` из `SayHelloStream(...).ResponseStream.ReadAllAsync()`
 
-## 7) Следующий шаг для практики
+## Идеи для следующего шага
 
-Добавь второй RPC метод, например:
-- `GetServerTime(Empty) returns (ServerTimeReply)`
-
-и вызови его из клиента. Так ты закрепишь:
-- изменение контракта,
-- автогенерацию кода,
-- расширение сервиса и клиента.
+- добавить **client streaming** (клиент отправляет поток)
+- добавить **bidirectional streaming**
+- добавить обработку deadline/cancellation на клиенте
+- вынести общие proto-контракты в отдельный проект
